@@ -636,3 +636,7 @@ mod freeform_history_name_tests;
 #[cfg(test)]
 #[path = "freeform_close_tolerance_tests.rs"]
 mod freeform_close_tolerance_tests;
+
+#[cfg(test)]
+#[path = "freeform_enter_deselects_tests.rs"]
+mod freeform_enter_deselects_tests;
