@@ -194,3 +194,7 @@ pub(crate) fn run_target(app: &mut PhotocraftApp, ctx: &egui::Context, mut resul
 #[cfg(test)]
 #[path = "../conditional_mode_change_controls_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../conditional_mode_change_alerts_tests.rs"]
+mod alerts_tests;
