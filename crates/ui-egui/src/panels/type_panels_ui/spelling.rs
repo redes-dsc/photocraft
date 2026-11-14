@@ -311,3 +311,7 @@ mod tests {
         assert_eq!(action.dialogs.iter().copied().collect::<Vec<_>>(), [0]);
     }
 }
+
+#[cfg(test)]
+#[path = "../type_spell_history_tests.rs"]
+mod spell_history_tests;
