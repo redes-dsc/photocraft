@@ -15,6 +15,8 @@ use crate::state::{DialogKind, Tool};
 const MARK: &str = "__createShape";
 /// Largest side the dialog accepts, in pixels (Photoshop's document limit).
 const MAX_PX: f64 = 300_000.0;
+/// The largest corner radius the Create Triangle dialog takes, as the options bar's Radius does.
+const MAX_RADIUS: f64 = 150_000.0;
 /// The reference's alert for a Width or Height typed past `1..=MAX_PX` px (#13358): Perspective
 /// Crop's text, with the limits in two decimals and the system's decimal separator ("1,00" there).
 fn size_range_alert() -> String {
@@ -117,6 +119,9 @@ pub fn open(app: &mut PhotocraftApp, tool: Tool, at: [f64; 2]) -> Option<u64> {
             f.insert("radii".into(), json!([r, r, r, r]));
             f.insert("linkRadii".into(), json!(true));
         }
+        "triangle" => {
+            f.insert("cornerRadius".into(), json!(f64::from(o.triangle_corner_radius.max(0.0))));
+        }
         "polygon" => {
             f.insert("sides".into(), json!(sides));
             f.insert("starRatio".into(), json!(100.0));
@@ -167,7 +172,10 @@ pub fn geometry(f: &Map<String, Value>) -> Result<Value, String> {
             if radii.iter().any(|r| *r > 0.0) { json!({"kind": "roundedRect", "rect": rect, "radii": radii}) } else { json!({"kind": "rect", "rect": rect}) }
         }
         "ellipse" => json!({"kind": "ellipse", "rect": rect}),
-        "triangle" => json!({"kind": "triangle", "rect": rect, "historyName": "Triangle Tool"}),
+        "triangle" => match num(f, "cornerRadius").filter(|r| *r > 0.0) {
+            Some(r) => json!({"kind": "triangle", "rect": rect, "cornerRadius": r.clamp(0.0, MAX_RADIUS), "historyName": "Triangle Tool"}),
+            None => json!({"kind": "triangle", "rect": rect, "historyName": "Triangle Tool"}),
+        },
         "polygon" => {
             let sides = num(f, "sides").map_or(5.0, |s| s.round().clamp(3.0, 100.0));
             let ratio = num(f, "starRatio").map_or(100.0, |r| r.clamp(1.0, 100.0));
@@ -305,6 +313,15 @@ pub fn body(app: &PhotocraftApp, ui: &mut egui::Ui, f: &mut Map<String, Value>) 
                 }
                 f.insert("radii".into(), json!(radii.map(|r| f64::from(r.max(0.0)))));
             }
+        }
+        "triangle" => {
+            ui.horizontal(|ui| {
+                label(ui, tl!("Radius:"));
+                let mut r = num(f, "cornerRadius").unwrap_or(0.0) as f32;
+                if crate::widgets::value_field(ui, &mut r, 0.0..=150_000.0, "px", 72.0).accessible_name(tl!("Radius:")).changed() {
+                    f.insert("cornerRadius".into(), json!(f64::from(r.clamp(0.0, 150_000.0))));
+                }
+            });
         }
         "polygon" => {
             ui.horizontal(|ui| {
