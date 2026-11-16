@@ -4641,3 +4641,19 @@ fn public_begin_playback_scopes_registered_actions_but_still_rejects_real_recurs
     assert!(s.actions.playback_stack[0].position.is_none());
     finish_playback(&mut s, recording, &driver, 0);
 }
+
+#[test]
+fn layers_to_files_shortens_long_layer_names() {
+    let dir = tmp("long-layer-name");
+    let mut s = session(4, 4, 8);
+    let name = format!("{}{}", "a".repeat(199), "é".repeat(60));
+    s.execute("layer.new.layer", json!({"name": name})).unwrap();
+    let result = s.execute("file.export.layersToFiles", json!({"dir": dir, "prefix": "doc"})).unwrap();
+    let files = result["files"].as_array().unwrap();
+    assert_eq!(files.len(), 2);
+    for f in files {
+        let f = f.as_str().unwrap();
+        assert!(std::path::Path::new(f).file_name().unwrap().len() <= 255, "{f}");
+        assert!(std::path::Path::new(f).exists(), "{f}");
+    }
+}
