@@ -1002,6 +1002,8 @@ mod new_doc_web_artboards_tests;
 #[cfg(test)]
 mod blend_dropdown_wheel_tests;
 #[cfg(test)]
+mod brushes_scroll_tests;
+#[cfg(test)]
 mod paths_scroll_tests;
 
 #[cfg(test)]
