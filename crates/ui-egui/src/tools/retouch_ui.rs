@@ -1225,10 +1225,9 @@ pub fn options_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui, tool: Tool) -> bo
         Tool::ObjectSelection => {
             crate::panels::selection_mode_buttons(&mut app.ui.selection_mode, ui);
             crate::widgets::vline(ui, 22.0);
-            crate::widgets::checkbox(ui, &mut o.object_finder, tl!("Object Finder"));
             crate::widgets::checkbox(ui, &mut o.sample_all.object_selection, tl!("Sample All Layers"));
             crate::widgets::checkbox(ui, &mut o.object_hard_edge, tl!("Hard Edge"));
-            opt(ui, tl!("Drag a rectangle around the object"));
+            crate::object_finder::bar_buttons(app, ui);
             crate::widgets::vline(ui, 22.0);
             if crate::widgets::secondary_button(ui, tl!("Select Subject"), 0.0).clicked() {
                 let r = app.run("select.subject", json!({}));
