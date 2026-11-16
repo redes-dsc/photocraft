@@ -1113,3 +1113,6 @@ mod freeform_command_tests {
         assert_eq!(app.session.active().unwrap().history.past_len(), n);
     }
 }
+
+#[cfg(test)]
+mod enter_key_tests;
