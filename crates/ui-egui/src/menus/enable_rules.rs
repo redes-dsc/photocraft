@@ -101,7 +101,8 @@ fn selection_targets(id: &str) -> Option<Targets> {
         | "layer.rasterize.type"
         | "layer.rasterize.shape"
         | "layer.rasterize.fillContent"
-        | "layer.rasterize.smartObject" => Targets::Any,
+        | "layer.rasterize.smartObject"
+        | "layer.mergeLayers" => Targets::Any,
         "layer.releaseClippingMask" | "layer.layerStyle.pasteLayerStyle" | "layer.layerStyle.clear" => Targets::Any,
         "layer.createClippingMask" => Targets::AllButLowest,
         "layer.layerMask.revealAll" | "layer.layerMask.hideAll" | "layer.layerMask.revealSelection" | "layer.layerMask.hideSelection" => Targets::WithoutMask,
@@ -515,3 +516,40 @@ mod tests {
 #[cfg(test)]
 #[path = "warp_split_enable_tests.rs"]
 mod warp_split_enable_tests;
+
+#[cfg(test)]
+mod merge_layers_selection_tests {
+    use serde_json::json;
+
+    use super::*;
+
+    /// #12427: with two or more layers selected and the Background active, Merge Layers is judged
+    /// by the whole selection, so Ctrl+E is not greyed by the active layer alone.
+    #[test]
+    fn merge_layers_follows_the_selection_not_the_active_layer() {
+        let mut s = photocraft_engine::Session::new();
+        s.execute("file.new", json!({"width": 20, "height": 20})).unwrap();
+        let bg = s.active().unwrap().doc.layers[0].id;
+        s.execute("layer.new.layer", json!({"name": "R1"})).unwrap();
+        let r1 = s.active().unwrap().active_layer.unwrap();
+        s.execute("layer.new.layer", json!({"name": "R2"})).unwrap();
+        let r2 = s.active().unwrap().active_layer.unwrap();
+        // The Background is active, R1 and R2 are the selection.
+        s.execute("layer.select", json!({"layer": bg.0})).unwrap();
+        s.execute("layer.select", json!({"layer": r1.0, "mode": "add"})).unwrap();
+        s.execute("layer.select", json!({"layer": r2.0, "mode": "add"})).unwrap();
+        let app = crate::PhotocraftApp::new(s, crate::Services::default());
+        assert_eq!(app.session.active().unwrap().selected_layers().len(), 3);
+        assert!(!disabled(&app, "layer.mergeLayers"), "Merge Layers stays enabled with several layers selected");
+    }
+
+    /// A single layer keeps today's rule: nothing to merge, so Merge Layers is greyed.
+    #[test]
+    fn a_single_selected_layer_keeps_merge_layers_greyed() {
+        let mut s = photocraft_engine::Session::new();
+        s.execute("file.new", json!({"width": 20, "height": 20})).unwrap();
+        s.execute("layer.new.layer", json!({})).unwrap();
+        let app = crate::PhotocraftApp::new(s, crate::Services::default());
+        assert!(disabled(&app, "layer.mergeLayers"), "a single layer has nothing to merge with");
+    }
+}
