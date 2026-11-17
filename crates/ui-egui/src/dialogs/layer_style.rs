@@ -28,6 +28,8 @@ mod contour;
 mod gradient_field;
 #[cfg(test)]
 mod gradient_method_tests;
+#[cfg(test)]
+mod satin_canvas_drag_tests;
 
 #[derive(Clone, Copy)]
 enum P {
@@ -534,6 +536,97 @@ pub fn drag_shadow(f: &mut Map<String, Value>, start: bool, total: [f64; 2]) {
     let new_angle = if d >= 0.5 { oy.atan2(-ox).to_degrees().round() } else { angle };
     set_param(f, &id, "angle", json!(new_angle));
     set_param(f, &id, "distance", json!(d.round().clamp(0.0, 30000.0)));
+}
+
+/// Whether the selected page is a Satin, which a drag on the image moves while the dialog is
+/// open, as in the reference application (#14985; [`drag_satin`]).
+pub fn drags_satin(f: &Map<String, Value>) -> bool {
+    let selected = f.get("selected").and_then(Value::as_str).unwrap_or_default();
+    entry(f, selected).and_then(|e| e.get("kind")).and_then(Value::as_str) == Some("satin")
+}
+
+/// Whether a drag on the image moves the selected page's offset: a shadow's ([`drags_shadow`]) or
+/// a Satin's ([`drags_satin`], #14985). The canvas takes such a drag with [`drag_offset`].
+pub fn drags_offset(f: &Map<String, Value>) -> bool {
+    drags_shadow(f) || drags_satin(f)
+}
+
+/// A drag on the image with a shadow or Satin page selected: [`drag_satin`] on a Satin page, else
+/// [`drag_shadow`] (which does nothing off a shadow page, and ignores `press`, the press's start
+/// time that tells a Satin drag its gesture; #14985).
+pub fn drag_offset(f: &mut Map<String, Value>, start: bool, total: [f64; 2], press: f64) {
+    if drags_satin(f) {
+        drag_satin(f, start, total, press);
+    } else {
+        drag_shadow(f, start, total);
+    }
+}
+
+/// The options bar's hint, translated, while a drag on the image edits the selected page's effect
+/// (#14985). Only the Satin page has one for now; other pages keep the bar they have (Drop
+/// Shadow: #14895).
+pub fn canvas_drag_hint(f: &Map<String, Value>) -> Option<&'static str> {
+    drags_satin(f).then(|| tl!("Click and drag to adjust the satin effect."))
+}
+
+/// A drag on the image with a Satin page selected: `start` is true on the press, `total` the
+/// pointer's movement since in document pixels and `press` the press's start time, which tells one
+/// gesture from the next wherever each begins. The drag keeps the satin's angle and distance as
+/// shown, the selected instance, `press` and `total` at its baseline, retaken on the press and
+/// whenever that record is missing, malformed or for another press or instance (a press the drag
+/// did not see begin, as after a middle-button pan, even at the same spot): the satin then moves
+/// by the travel since the baseline, never from an earlier gesture's values. The offset vector
+/// (−cos angle, sin angle) × distance follows the pointer; the new distance is its length
+/// truncated to a whole pixel (1 to 250) and the new angle its direction truncated toward zero to
+/// a whole degree, the angle shown kept when the vector collapses. A Satin never uses Global
+/// Light, so only this instance's `angle` and `distance` change (#14985).
+pub fn drag_satin(f: &mut Map<String, Value>, start: bool, total: [f64; 2], press: f64) {
+    const KEY: &str = "__satinDrag";
+    let Some(id) = f.get("selected").and_then(Value::as_str).map(str::to_string).filter(|_| drags_satin(f)) else { return };
+    let Some(p) = entry(f, &id).and_then(|e| e.get("params")) else { return };
+    let shown_angle = p.get("angle").and_then(Value::as_f64).unwrap_or(90.0);
+    let shown_distance = p.get("distance").and_then(Value::as_f64).unwrap_or(50.0);
+    let pair = |v: Option<&Value>| {
+        let a = v?.as_array()?;
+        Some([a.first()?.as_f64()?, a.get(1)?.as_f64()?])
+    };
+    let stored = f
+        .get(KEY)
+        .filter(|k| k.get("id").and_then(Value::as_str) == Some(id.as_str()) && k.get("press").and_then(Value::as_f64) == Some(press))
+        .and_then(|k| {
+            let [bx, by] = pair(k.get("base"))?;
+            Some(([bx, by], k.get("angle")?.as_f64()?, k.get("distance")?.as_f64()?))
+        });
+    let (base, angle, distance) = match stored {
+        Some(s) if !start => s,
+        _ => {
+            f.insert(KEY.into(), json!({"id": id, "press": press, "base": total, "angle": shown_angle, "distance": shown_distance}));
+            (total, shown_angle, shown_distance)
+        }
+    };
+    let total = [total[0] - base[0], total[1] - base[1]];
+    // No travel (a plain press, or the pointer back where the drag began) keeps the values
+    // captured at the baseline as they were, fractions included: nothing was dragged.
+    if total == [0.0, 0.0] {
+        set_param(f, &id, "angle", json!(angle));
+        set_param(f, &id, "distance", json!(distance));
+        return;
+    }
+    let a = angle.to_radians();
+    let (ox, oy) = (-a.cos() * distance + total[0], a.sin() * distance + total[1]);
+    let d = ox.hypot(oy);
+    if !d.is_finite() {
+        return;
+    }
+    let new_angle = if d >= 0.5 {
+        let deg = oy.atan2(-ox).to_degrees();
+        // Truncation, so a hair under a whole degree from float noise (89.999999…) must not drop one.
+        (deg + 1e-9 * deg.signum()).trunc()
+    } else {
+        shown_angle
+    };
+    set_param(f, &id, "angle", json!(new_angle));
+    set_param(f, &id, "distance", json!(d.trunc().clamp(1.0, 250.0)));
 }
 
 /// Whether the selected page is a Gradient Overlay, which a drag on the image moves while the
