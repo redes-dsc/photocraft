@@ -280,6 +280,8 @@ pub enum Edit {
     Path(Vec<[usize; 2]>),
     /// Pen + ⌥ on an anchor: a click makes a corner, a drag pulls out smooth handles.
     Convert([usize; 2]),
+    /// Add Anchor Point's drag from the anchor it just added: pulls out its handles (#12707).
+    Pull(crate::anchor_tools::Pull),
     /// ⌥-drag on a segment: a moved copy of the subpath of these anchors (all of them) goes last.
     Duplicate(Vec<[usize; 2]>),
 }
@@ -291,7 +293,14 @@ impl Edit {
         if shift && matches!(self, Edit::Anchors(_) | Edit::Duplicate(_)) { crate::stroke_constraint::snap45_anchor(start, p) } else { p }
     }
 
-    /// The edit for a drag from `start` to `end`, as a command and its params (without target).
+    /// The edit for a drag from `start` to `end`, as commands and their params (without target).
+    fn commands(&self, start: [f64; 2], end: [f64; 2]) -> Vec<(&'static str, Value)> {
+        if let Edit::Pull(pull) = self {
+            return pull.commands();
+        }
+        vec![self.command(start, end)]
+    }
+
     fn command(&self, start: [f64; 2], end: [f64; 2]) -> (&'static str, Value) {
         let d = [end[0] - start[0], end[1] - start[1]];
         match self {
@@ -306,6 +315,7 @@ impl Edit {
             Edit::Segment([s, k], t) => ("path.bendSegment", json!({"subpath": s, "knot": k, "t": t, "move": d})),
             Edit::Path(a) => ("path.moveAnchors", json!({"anchors": a, "move": d, "stepName": "Drag Path"})),
             Edit::Convert([s, k]) => ("path.convertPoint", json!({"subpath": s, "knot": k, "out": end})),
+            Edit::Pull(pull) => ("path.convertPoint", json!({"subpath": pull.knot[0], "knot": pull.knot[1], "out": end})),
             Edit::Duplicate(a) => ("path.moveAnchors", json!({"anchors": a, "move": d, "duplicate": true, "stepName": "Drag Path"})),
         }
     }
@@ -320,6 +330,7 @@ impl Edit {
             Edit::Handle(k, h, from, independent) => edit::move_handle(&mut p, *k, *h, Point::new(from.x + d[0], from.y + d[1]), *independent),
             Edit::Segment(k, t) => edit::bend_segment(&mut p, *k, *t, d),
             Edit::Convert(k) => edit::convert_point(&mut p, *k, Some(Point::new(end[0], end[1]))),
+            Edit::Pull(pull) => pull.apply(&mut p),
             Edit::Duplicate(a) => {
                 p.subpaths.push(p.subpaths.get(a.first()?[0])?.clone());
                 let last = p.subpaths.len() - 1;
@@ -618,6 +629,9 @@ pub fn pointer(app: &mut PhotocraftApp, ev: ToolEvent, mods: Modifiers) -> bool 
             let ds = &mut app.ui.direct_selection;
             match &mut ds.drag {
                 Some(Drag::Edit { base, edit, start, end, preview, .. }) => {
+                    if let Edit::Pull(pull) = edit {
+                        pull.step([x, y], mods);
+                    }
                     *end = edit.constrain(*start, [x, y], mods.shift);
                     *preview = edit.preview(base, *start, *end);
                 }
@@ -627,7 +641,10 @@ pub fn pointer(app: &mut PhotocraftApp, ev: ToolEvent, mods: Modifiers) -> bool 
             true
         }
         ToolEvent::Up { x, y } => match app.ui.direct_selection.drag.take() {
-            Some(Drag::Edit { target, base, edit, start, .. }) => {
+            Some(Drag::Edit { target, base, mut edit, start, .. }) => {
+                if let Edit::Pull(pull) = &mut edit {
+                    pull.step([x, y], mods);
+                }
                 let end = edit.constrain(start, [x, y], mods.shift);
                 release(app, target, &base, &edit, start, end, mods);
                 app.ui.direct_selection.coalesce = None;
@@ -844,10 +861,11 @@ pub(crate) fn moved(app: &PhotocraftApp, start: [f64; 2], end: [f64; 2]) -> bool
     (end[0] - start[0]).hypot(end[1] - start[1]) * f64::from(app.point_zoom()) >= 1.0
 }
 
-/// End of an edit drag: commit it as one command. A click (no movement) commits nothing, except
+/// End of an edit drag: commit it as one command (or one history step). A click (no movement) commits nothing, except
 /// Pen + ⌥ on an anchor, which makes it a corner. The Pen path being drawn takes the edit directly.
 fn release(app: &mut PhotocraftApp, target: PathRef, base: &Path, edit: &Edit, start: [f64; 2], end: [f64; 2], mods: Modifiers) {
-    let moved = moved(app, start, end);
+    // A pull whose anchor Space moved commits even if the pointer came back to the press.
+    let moved = moved(app, start, end) || matches!(edit, Edit::Pull(pull) if pull.repositioned());
     if target == PathRef::Pen {
         let edited = match edit {
             Edit::Convert(k) if !moved => {
@@ -862,10 +880,10 @@ fn release(app: &mut PhotocraftApp, target: PathRef, base: &Path, edit: &Edit, s
         }
         return;
     }
-    let (id, mut params) = match edit {
-        Edit::Convert([s, k]) if !moved => ("path.convertPoint", json!({"subpath": s, "knot": k})),
+    let mut commands = match edit {
+        Edit::Convert([s, k]) if !moved => vec![("path.convertPoint", json!({"subpath": s, "knot": k}))],
         _ if !moved => return,
-        e => e.command(start, end),
+        e => e.commands(start, end),
     };
     // The Convert Point tool names its steps as the reference does; the Pen's ⌥ and Direct
     // Selection (Convert Point with ⌘ too) keep the commands' own names.
@@ -875,20 +893,24 @@ fn release(app: &mut PhotocraftApp, target: PathRef, base: &Path, edit: &Edit, s
         Edit::Handle(.., true) if convert_tool => Some("Corner Drag"),
         _ => None,
     };
-    if let (Some(p), Some(name)) = (params.as_object_mut(), step_name) {
-        p.insert("stepName".into(), json!(name));
-    }
-    if let (Some(p), Some(t)) = (params.as_object_mut(), target.params(app).as_object()) {
-        p.extend(t.clone());
-    }
-    if let (Some(p), Some(key)) = (params.as_object_mut(), app.ui.direct_selection.coalesce.take()) {
-        p.insert("coalesce".into(), json!(key));
+    let (target_params, key) = (target.params(app), app.ui.direct_selection.coalesce.take());
+    for (_, params) in &mut commands {
+        if let (Some(p), Some(name)) = (params.as_object_mut(), step_name) {
+            p.insert("stepName".into(), json!(name));
+        }
+        if let (Some(p), Some(t)) = (params.as_object_mut(), target_params.as_object()) {
+            p.extend(t.clone());
+        }
+        // Several commands (Add Anchor Point's pull) share the key, so they make one step.
+        if let (Some(p), Some(key)) = (params.as_object_mut(), key.as_ref()) {
+            p.insert("coalesce".into(), json!(key));
+        }
     }
     // sync_views checks ownership while the command runs: keep this selection off the live UI
     // until its own command is done, then bind it to the revision that made.
     let mut selection = std::mem::take(&mut app.ui.direct_selection);
-    match app.run(id, params) {
-        Ok(_) => {
+    match commands.into_iter().try_for_each(|(id, params)| app.run(id, params).map(|_| ())) {
+        Ok(()) => {
             if let Edit::Duplicate(a) = edit {
                 // The copy is what was dragged: it ends up selected, not the source.
                 selection.anchors = a.iter().map(|&[_, k]| [base.subpaths.len(), k]).collect();
