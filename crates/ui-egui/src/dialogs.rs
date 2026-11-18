@@ -703,6 +703,7 @@ pub mod color_range_ui;
 pub mod color_table_ui;
 pub mod count_group_name_ui;
 pub mod credits;
+pub(crate) mod curves_presets;
 pub mod dds_options_ui;
 pub mod delete_layer_prompt;
 pub mod discard_ui;
