@@ -33,6 +33,7 @@ mod magnetic_lasso_right_click;
 mod paint_bucket_all_layers;
 mod pattern_preview_canvas;
 mod radial_blur_center;
+mod spot_healing_reset_tip;
 mod system_locale;
 mod tone_targets;
 mod ui_scale_canvas;
