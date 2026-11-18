@@ -324,7 +324,21 @@ pub const PRECHECKED: &[&str] = &["layer.new.layer", "layer.new.group", "layer.n
 /// The selected layers of `doc` whose active layer is `active` and whose selection set is `selected`, in bottom-to-top
 /// order ([`DocState::selected_layers`]), for a reader that holds the document without its editing state.
 pub fn selected_in(doc: &Document, active: Option<LayerId>, selected: &[LayerId]) -> Vec<LayerId> {
+    /// Collects selected IDs in document order without constructing layer paths.
+    fn collect(layers: &[photocraft_doc::Layer], selected: &[LayerId], out: &mut Vec<LayerId>) {
+        for layer in layers {
+            if selected.binary_search(&layer.id).is_ok() {
+                out.push(layer.id);
+            }
+            if let Some(children) = layer.children() {
+                collect(children, selected, out);
+            }
+        }
+    }
     let Some(active) = active else { return Vec::new() };
-    let set: &[LayerId] = if selected.contains(&active) { selected } else { std::slice::from_ref(&active) };
-    doc.walk().into_iter().map(|(_, _, l)| l.id).filter(|id| set.contains(id)).collect()
+    let mut selected = if selected.contains(&active) { selected.to_vec() } else { vec![active] };
+    selected.sort_unstable();
+    let mut out = Vec::new();
+    collect(&doc.layers, &selected, &mut out);
+    out
 }
