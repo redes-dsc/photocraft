@@ -1276,6 +1276,8 @@ pub struct FilterPreviewKey {
 #[cfg(test)]
 mod global_light_angle_range_tests;
 #[cfg(test)]
+mod hdr_toning_range_tests;
+#[cfg(test)]
 mod tests;
 
 #[cfg(test)]
