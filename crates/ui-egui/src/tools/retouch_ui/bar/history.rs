@@ -1,11 +1,14 @@
 //! The options-bar members of the History Brush, Art History Brush, Pattern Stamp and Red Eye
 //! tools. Mode, Opacity and Flow come before them, from the bar's stamp arm.
 
+use craft::behavior::IconId;
+use craft::ui::buttons::ToggleButton;
 use craft::ui::choice::Checkbox;
 use craft::ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing};
 use craft::ui::display::{Divider, Shade, Text};
 use craft::ui::form::Field;
 use craft::ui::pickers::Select;
+use craft::ui::primitives::IconSpec;
 use craft::ui::text::RangeAlert;
 use serde_json::json;
 
@@ -71,9 +74,38 @@ pub(super) fn art_history(ui: &mut egui::Ui, app: &mut PhotocraftApp) -> Option<
     });
     let area = number(tl!("Area"), &mut o.art_history_area, 0.0..=100.0).show(ui).out_of_range;
     let tolerance = number(tl!("Tolerance"), &mut o.art_history_tolerance, 0.0..=100.0).show(ui).out_of_range;
+    let angle = art_history_angle_pressure(ui, app);
     Divider::vertical().show(ui);
     hint(ui, tl!("Stylized dabs from a history state"));
-    area.or(tolerance)
+    area.or(tolerance).or(angle)
+}
+
+/// The Art History Brush's Angle and Pressure for Size, after Tolerance (#12629). They edit the
+/// tool's own brush, as the Background Eraser's do.
+fn art_history_angle_pressure(ui: &mut egui::Ui, app: &mut PhotocraftApp) -> Option<RangeAlert> {
+    let before = app.session.tools.brush.clone();
+    let mut brush = before.clone();
+    let mut angle = brush.angle;
+    let angle_out = number(tl!("Angle"), &mut angle, -180.0..=180.0)
+        .whole()
+        .unit("°")
+        .icon(IconSpec::svg(IconId::new("rotate_cw")))
+        .tooltip(tl!("Set the brush angle"))
+        .show(ui);
+    // One scrub is one gesture, so one history step.
+    let mut key = angle_out.events.iter().find_map(|e| crate::history_keys::coalesce("brush", e));
+    brush.angle = angle;
+    let pressure = ToggleButton::new(tl!("Always use pressure for size"), Bind::given(brush.pressure_size))
+        .icon(IconId::new("target"))
+        .icon_only()
+        .tooltip(tl!("Always use Pressure for Size. When off, Brush Preset controls pressure").to_owned())
+        .show(ui);
+    if let Some(on) = pressure.value().copied() {
+        brush.pressure_size = on;
+        key = pressure.events.iter().find_map(|e| crate::history_keys::coalesce("brush", e)).or(key);
+    }
+    crate::brush_panel::commit_keyed(app, &before, &brush, key);
+    angle_out.out_of_range
 }
 
 /// Pattern Stamp: Aligned, Impressionist, Pattern, Scale, Angle.
