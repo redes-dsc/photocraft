@@ -12,6 +12,7 @@ mod canvas_16f;
 mod checker_canvas;
 mod clipboard_svg;
 mod color_managed_canvas;
+mod color_replacement_reset_tip;
 mod crop_ctrl_straighten;
 mod crop_defaults;
 mod crop_options_bar_chrome;
