@@ -271,6 +271,15 @@ pub(super) fn params_for(app: &mut PhotocraftApp, id: &str) -> Option<(Vec<Param
             plain(vec![
                 Param::new("path", tl!("File"), ParamKind::text(format!("{dir}/{}.pdf", stem(&name)))),
                 Param::new("quality", tl!("Quality"), ParamKind::int(Some(0), Some(12), 10)),
+                // The page mode, a radio pair with no caption, Multi-Page Document first and selected (#13649).
+                Param::new(
+                    "mode",
+                    "",
+                    ParamKind::radio(
+                        opts(&[("multiPage", tl!("Multi-Page Document")), ("perArtboard", tl!("Document Per Artboard"))]),
+                        Some("multiPage".to_owned()),
+                    ),
+                ),
             ])
         }
         "file.export.dataSetsAsFiles" => {
@@ -816,3 +825,7 @@ fn export_contents(app: &mut PhotocraftApp) -> Result<Value, String> {
         Ok(json!({"path": path, "fileName": name, "bytes": bytes.len()}))
     })
 }
+
+#[cfg(test)]
+#[path = "artboards_to_pdf_mode_tests.rs"]
+mod artboards_to_pdf_mode_tests;
