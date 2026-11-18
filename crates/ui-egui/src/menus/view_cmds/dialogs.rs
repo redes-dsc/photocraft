@@ -262,6 +262,15 @@ pub(super) fn params_for(app: &mut PhotocraftApp, id: &str) -> Option<(Vec<Param
             plain(vec![
                 folder("dir", tl!("Destination"), dir),
                 Param::new("prefix", tl!("File Name Prefix"), ParamKind::text(stem(&name))),
+                // Include Overlapping Areas / Artboard Content Only, right below the prefix, with no caption (#13629).
+                Param::new(
+                    "content",
+                    "",
+                    ParamKind::radio(
+                        opts(&[("overlapping", tl!("Include Overlapping Areas")), ("artboard", tl!("Artboard Content Only"))]),
+                        Some("overlapping".to_owned()),
+                    ),
+                ),
                 choice("format", tl!("File Type"), export_formats(), "png"),
                 export_quality(),
             ])
@@ -270,6 +279,15 @@ pub(super) fn params_for(app: &mut PhotocraftApp, id: &str) -> Option<(Vec<Param
             let (_, _, name) = doc?;
             plain(vec![
                 Param::new("path", tl!("File"), ParamKind::text(format!("{dir}/{}.pdf", stem(&name)))),
+                // Include Overlapping Areas / Artboard Content Only, right below the file name, with no caption (#13646).
+                Param::new(
+                    "content",
+                    "",
+                    ParamKind::radio(
+                        opts(&[("overlapping", tl!("Include Overlapping Areas")), ("artboard", tl!("Artboard Content Only"))]),
+                        Some("overlapping".to_owned()),
+                    ),
+                ),
                 Param::new("quality", tl!("Quality"), ParamKind::int(Some(0), Some(12), 10)),
             ])
         }
