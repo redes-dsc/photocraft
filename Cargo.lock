@@ -1688,6 +1688,15 @@ version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=a6b9d9c986f7c4c399632d72d9a4a8c8ea0b86e9#a6b9d9c986f7c4c399632d72d9a4a8c8ea0b86e9"
 
 [[package]]
+name = "craft-gif"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=a6b9d9c986f7c4c399632d72d9a4a8c8ea0b86e9#a6b9d9c986f7c4c399632d72d9a4a8c8ea0b86e9"
+dependencies = [
+ "gif",
+ "image",
+]
+
+[[package]]
 name = "craft-heif"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=a6b9d9c986f7c4c399632d72d9a4a8c8ea0b86e9#a6b9d9c986f7c4c399632d72d9a4a8c8ea0b86e9"
@@ -6517,6 +6526,7 @@ dependencies = [
  "craft-crs",
  "craft-docpath",
  "craft-file-formats",
+ "craft-gif",
  "craft-image-codecs",
  "craft-kra",
  "craft-ora",
