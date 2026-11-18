@@ -270,6 +270,8 @@ pub(super) fn params_for(app: &mut PhotocraftApp, id: &str) -> Option<(Vec<Param
             let (_, _, name) = doc?;
             plain(vec![
                 Param::new("path", tl!("File"), ParamKind::text(format!("{dir}/{}.pdf", stem(&name)))),
+                // Ticked on first open (#13648).
+                Param::new("includeBackground", tl!("Include Background in Export"), ParamKind::bool(true)),
                 Param::new("quality", tl!("Quality"), ParamKind::int(Some(0), Some(12), 10)),
             ])
         }
