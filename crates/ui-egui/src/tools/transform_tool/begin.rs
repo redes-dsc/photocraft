@@ -865,3 +865,7 @@ pub fn leave_warp(app: &mut PhotocraftApp) {
         pv.split = None;
     }
 }
+
+#[cfg(test)]
+#[path = "warp_smart_style_tests.rs"]
+mod warp_smart_style_tests;
