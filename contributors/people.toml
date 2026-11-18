@@ -355,3 +355,7 @@ real_name = "Sven Lafebre"
 
 [people.kirubhakaran12]
 sync_github_name = true
+
+[people.guopengwu1990]
+display_name = "吴国鹏"
+sync_github_name = true
