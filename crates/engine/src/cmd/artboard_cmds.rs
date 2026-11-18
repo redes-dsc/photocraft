@@ -410,7 +410,7 @@ fn artboard_from_layers(s: &mut Session, p: &Value) -> Result<Value> {
     // A size of the user's own (a post, a story…) from the layers' top left; 0 or none keeps
     // their bounds on that axis (#9087).
     let size = [int(p, "width").filter(|v| *v != 0), int(p, "height").filter(|v| *v != 0)];
-    let (gid, rect, shift) = s.edit("Artboard from Layers", |doc, active| {
+    let (gid, rect, shift) = s.edit("New Artboard From Layers", |doc, active| {
         let ids = crate::layer_multi_cmds::top_level(doc, &sel);
         if ids.is_empty() || ids.iter().any(|id| doc.artboard_of(*id).is_some()) {
             return Err(EngineError::Other("select layers that are not in an artboard".into()));
@@ -904,6 +904,9 @@ mod file_names_tests;
 #[cfg(test)]
 #[path = "artboard_cmds/first_board_background_tests.rs"]
 mod first_board_background_tests;
+#[cfg(test)]
+#[path = "artboard_cmds/from_layers_history_name_tests.rs"]
+mod from_layers_history_name_tests;
 #[cfg(test)]
 #[path = "artboard_cmds/pdf_page_order_tests.rs"]
 mod pdf_page_order_tests;
