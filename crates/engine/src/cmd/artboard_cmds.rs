@@ -803,6 +803,11 @@ fn artboards_to_pdf(s: &mut Session, p: &Value) -> Result<Value> {
     let d = s.active().ok_or(EngineError::NoDocument)?;
     let doc = d.doc.clone();
     let quality = f64_param(p, "quality").or(Some(10.0));
+    // Reverse Page Order (#13644): the default page order the other way round.
+    let reverse = match p.get("reversePageOrder") {
+        None | Some(Value::Null) => false,
+        Some(v) => v.as_bool().ok_or_else(|| bad(cmd, "`reversePageOrder` must be true or false"))?,
+    };
     let mut pages = Vec::new();
     // Pages go bottom artboard of the Layers panel first, as in the reference application (#13643);
     // `chosen_documents` lists them top first, the order Artboards to Files keeps.
@@ -819,6 +824,9 @@ fn artboards_to_pdf(s: &mut Session, p: &Value) -> Result<Value> {
     }
     if pages.is_empty() {
         return Err(bad(cmd, "no matching artboards"));
+    }
+    if reverse {
+        pages.reverse();
     }
     write_file(&path, &raster_pdf(&pages))?;
     Ok(json!({"path": path, "pages": pages.len()}))
@@ -891,7 +899,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "file.export.artboardsToPdf",
             "Artboards to PDF…",
             &["File", "Export"],
-            r##"{"path":str (.pdf),"artboards":[id]?,"quality":0..12=10} → {path, pages} (one raster page per board, bottom artboard of the Layers panel first)"##,
+            r##"{"path":str (.pdf),"artboards":[id]?,"quality":0..12=10,"reversePageOrder":bool=false (the default page order the other way round)} â†’ {path, pages} (one raster page per board, bottom artboard of the Layers panel first)"##,
             export_artboards,
             artboards_to_pdf
         ),
@@ -907,6 +915,9 @@ mod first_board_background_tests;
 #[cfg(test)]
 #[path = "artboard_cmds/pdf_page_order_tests.rs"]
 mod pdf_page_order_tests;
+#[cfg(test)]
+#[path = "artboard_cmds/pdf_reverse_page_order_tests.rs"]
+mod pdf_reverse_page_order_tests;
 #[cfg(test)]
 #[path = "artboard_cmds/tests.rs"]
 mod tests;
