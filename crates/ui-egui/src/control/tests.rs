@@ -2223,3 +2223,6 @@ fn shift_right_menu_choose_rejects_bad_choices_and_sets_the_tool() {
     shift_right(&mut app, "magicEraser");
     assert!(inspect(&app, &ctx)["brushModeMenu"].is_null());
 }
+
+#[path = "channel_merge_tests.rs"]
+mod channel_merge_tests;
