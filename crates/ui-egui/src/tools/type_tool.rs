@@ -24,6 +24,7 @@ mod layout;
 mod options_bar;
 mod panel;
 mod pointer;
+pub mod task_bar;
 mod values;
 
 pub(crate) use controls::canvas_controls;
@@ -54,6 +55,7 @@ pub use panel::{character_panel, type_properties};
 pub(crate) use pointer::{PathClick, path_target};
 pub(crate) use pointer::{TypeState, box_shape, drain, tool};
 pub(crate) use values::doc_unit;
+pub use task_bar::draw as draw_task_bar;
 
 pub const PLACEHOLDER: &str = "Lorem Ipsum";
 

@@ -89,7 +89,12 @@ pub fn inspect(app: &PhotocraftApp, ctx: &egui::Context) -> Value {
     crate::layer_style::describe_params(app, &mut dialogs);
     // Last frame's task bar rect, unless the bar can't show now (hidden by `ui.set` before the
     // next draw).
-    let task_bar_rect = app.ui.task_bar_shown.filter(|_| crate::crop_task_bar::eligible(app));
+    let task_bar_rect = app.ui.task_bar_shown.filter(|_| {
+        crate::crop_task_bar::eligible(app)
+            || crate::tools::type_tool::task_bar::eligible(app)
+            || crate::tools::place_action_bar::eligible(app)
+            || crate::tools::transform_task_bar::eligible(app)
+    });
     // The one open canvas context menu, told apart by its kind.
     let menu = app.ui.canvas_tool_menu.as_ref();
     let kind = menu.map(|menu| &menu.kind);
