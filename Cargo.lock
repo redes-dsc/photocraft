@@ -6438,6 +6438,7 @@ dependencies = [
  "cap-std",
  "clap",
  "craft",
+ "craft-file-formats",
  "craft-image-codecs 0.1.0 (git+https://github.com/storytold/craft-libs?rev=18ffc07519b15f5ef39e752aa0f405261fec8ebb)",
  "craft-psd",
  "getrandom 0.3.4",
