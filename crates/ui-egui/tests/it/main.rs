@@ -26,6 +26,7 @@ mod magnetic_lasso_right_click;
 mod paint_bucket_all_layers;
 mod pending_remove_pointer;
 mod radial_blur_center;
+mod recent_colors;
 mod save_memory_gate;
 mod system_locale;
 mod tone_targets;
