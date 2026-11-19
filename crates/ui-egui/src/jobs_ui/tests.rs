@@ -1205,6 +1205,6 @@ fn asynchronous_place_completion_displays_result_warnings() {
     let warning = "SVG: 1 embedded image was omitted";
     let place = super::PlaceJob { job: JobId(1), name: "omitted.svg".into(), doc };
     // A frame placement bypasses transform startup but must still display its warnings.
-    super::finish_place(&mut app, &egui::Context::default(), place, photocraft_engine::jobs::JobOutcome::Done(json!({"frame":1,"warnings":[warning]})));
+    super::finish_place(&mut app, &egui::Context::default(), place, photocraft_engine::jobs::JobOutcome::Done(json!({"frame":1,"warnings":[warning]})), false);
     assert!(app.ui.notices.iter().any(|notice| notice.lines.iter().any(|line| line == warning)));
 }

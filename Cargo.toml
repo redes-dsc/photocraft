@@ -65,6 +65,8 @@ craft-tiff = { git = "https://github.com/storytold/craft-libs", rev = "18ffc0751
 # Camera-field EXIF reader/writer, shared prerequisite craft-libs#1563.
 craft-metadata = { git = "https://github.com/storytold/craft-libs", rev = "18ffc07519b15f5ef39e752aa0f405261fec8ebb" }
 craft-crs = { git = "https://github.com/storytold/craft-libs", rev = "18ffc07519b15f5ef39e752aa0f405261fec8ebb" }
+# Reads .vectorcraft files (photocraft-io's `vectorcraft`).
+craft-doc = { git = "https://github.com/storytold/craft-libs", rev = "18ffc07519b15f5ef39e752aa0f405261fec8ebb" }
 # Interface translations: lookup, fallback, CLDR plurals and language names over the craft-i18n
 # catalogs that `crates/ui-egui/build.rs` embeds from `CRAFT_I18N_DIR` (storytold/craft-i18n, at
 # the commit in `craft-i18n.rev`). Already in the tree through craft.
