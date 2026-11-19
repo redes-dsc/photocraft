@@ -86,6 +86,17 @@ fn reset_tool(app: &mut PhotocraftApp, tool: Tool) {
     if crate::tool_feedback::is_selection_tool(tool) || matches!(tool, Tool::Patch | Tool::ContentAwareMove) {
         app.ui.selection_mode = 0;
     }
+    // Pattern Stamp: its own pattern goes back to the first of the first default group, while Fill
+    // and the Paint Bucket keep the shared pattern selection (#12868). A missing built-in leaves
+    // the tool following the shared selection, so no stale id can be painted.
+    if tool == Tool::PatternStamp
+        && let Some(id) = photocraft_engine::presets::patterns::builtin_groups()
+            .first()
+            .and_then(|g| g.items.first())
+            .filter(|id| app.session.patterns.items.iter().any(|p| p.id == **id))
+    {
+        app.ui.tool_options.pattern_stamp_pattern = Some(id.clone());
+    }
     if crate::paint_mouse::has_brush_picker(tool) {
         // The session brush is the options bar's tool's: make sure it is `tool`'s before resetting.
         crate::paint_mouse::sync_tool_brush(app);
