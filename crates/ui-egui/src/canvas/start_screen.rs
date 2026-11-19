@@ -8,15 +8,14 @@ use craft::ui::shell::{StartAction, StartLink, StartScreen};
 
 use super::PhotocraftApp;
 
-/// Recent files listed on the Home screen.
-const HOME_RECENT: usize = 11;
-
-/// The Home screen in the document area. The recent list is empty on the web, which has no paths to reopen, and with
+/// The Home screen in the document area. The recent list is File › Open Recent's: as many files as Preferences › File
+/// Handling › Recent File List Contains keeps (#12234). It is empty on the web, which has no paths to reopen, and with
 /// Show Home Recent Files off.
 pub(super) fn start_screen(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     let ctx = ui.ctx().clone();
     let show_recent = !cfg!(target_arch = "wasm32") && app.session.prefs().interface.show_home_recent_files;
-    let recent = if show_recent { crate::home_recent_ui::recent_files(app, HOME_RECENT) } else { Vec::new() };
+    let cap = app.recent_cap();
+    let recent = if show_recent { crate::home_recent_ui::recent_files(app, cap) } else { Vec::new() };
     let thumbs = crate::home_recent_ui::thumbnails(&ctx);
     // The source reads the app, so the page binds copies of the view and the sort and they are written back after.
     let (mut view, mut sort) = (app.ui.chrome.home_recent_view, app.ui.chrome.home_recent_sort);
@@ -26,7 +25,7 @@ pub(super) fn start_screen(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
         StartScreen::new(Bind::bound(&mut view), Bind::bound(&mut sort), &recent)
             .thumbnails(&thumbs, &source)
             .links(&links[..])
-            .max_recent(HOME_RECENT)
+            .max_recent(cap)
             .drop_hint(Label::from(tl!("Drop an image or PSD anywhere to open it.")))
             .show(ui)
             .actions
