@@ -333,7 +333,7 @@ id = "P23"
 title = "Warp / Puppet / Perspective preview at 4K"
 issue = 210
 target = "≤ 16 ms per frame, commit in the background"
-not_measurable = "the previews run inside the UI tools; no headless frame harness, no background commit"
+not_measurable = "the previews run inside the UI tools; no headless frame harness (the commits are P116-P118)"
 
 [[scenario]]
 id = "P24"
@@ -901,3 +901,45 @@ row = "Free Transform drag update, 2 layers on 24 MP: scale through mip levels"
 metric = "max"
 budget_ms = 16
 enforce = true  # #11103: max 43.2 ms before (a mip level built in the frame), 0.09 ms after (2026-11-11)
+
+# ---- #210: Liquify, Puppet Warp and Perspective Warp commits off the UI thread -----------------
+
+[[scenario]]
+id = "P116"
+title = "Commit Liquify on 24 MP (longest UI-thread step)"
+issue = 210
+bench = "perf_scenarios"
+row = "Liquify commit 24 MP: longest UI-thread step"
+metric = "max"
+budget_ms = 100
+enforce = false  # new; no baseline yet
+
+[[scenario]]
+id = "P117"
+title = "Commit Puppet Warp on 24 MP (longest UI-thread step)"
+issue = 210
+bench = "perf_scenarios"
+row = "Puppet Warp commit 24 MP: longest UI-thread step"
+metric = "max"
+budget_ms = 100
+enforce = false  # new; no baseline yet
+
+[[scenario]]
+id = "P118"
+title = "Commit Perspective Warp on 24 MP (longest UI-thread step)"
+issue = 210
+bench = "perf_scenarios"
+row = "Perspective Warp commit 24 MP: longest UI-thread step"
+metric = "max"
+budget_ms = 100
+enforce = false  # new; no baseline yet
+
+[[scenario]]
+id = "P119"
+title = "Cancel a Perspective Warp job on 24 MP (until the worker exits)"
+issue = 210
+bench = "perf_scenarios"
+row = "cancel Perspective Warp job on 24 MP"
+metric = "p95"
+budget_ms = 200
+enforce = false  # new; no baseline yet
