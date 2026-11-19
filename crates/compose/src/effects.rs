@@ -247,6 +247,8 @@ impl FxMaps {
 }
 
 #[cfg(test)]
+mod inner_shadow_size_one_tests;
+#[cfg(test)]
 mod tests;
 
 #[cfg(test)]
