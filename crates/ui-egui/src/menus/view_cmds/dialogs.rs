@@ -6,6 +6,10 @@ use craft::ui::patterns::form_dialogs::{DialogFields, Param, ParamDialog, ParamK
 use craft::ui::runtime::env::Label;
 use craft::ui::runtime::requests::PathKind;
 
+#[path = "artboard_name_options.rs"]
+mod artboard_name_options;
+pub(crate) use artboard_name_options::strip as strip_artboard_name_options;
+
 // ---------- dialogs and pickers in front of engine commands ----------
 
 /// The command ids whose dialog is a hosted parameter form built by [`params_for`] (Open EXR Parts included).
@@ -49,8 +53,18 @@ fn open_form(app: &mut PhotocraftApp, id: &str, title: &str, params: Vec<Param>,
     let title = crate::dialogs::filter_dialog::title_of(title);
     let key = id.to_owned();
     crate::dialogs::params::open_param(app, id, fields, fixed, move |fields: &mut DialogFields| {
+        derive(&key, fields);
         ParamDialog::command(key.clone(), title.clone(), params.clone()).values(Bind::bound(fields))
     })
+}
+
+/// Brings a form's shell keys up to date with the values they follow, before each pass, OK and automation write (the
+/// form's builder runs at each): a row takes one `visible_when` condition, so a row shown by two values is shown by a
+/// shell key that combines them.
+fn derive(id: &str, fields: &mut DialogFields) {
+    if id == artboard_name_options::COMMAND {
+        artboard_name_options::derive(fields);
+    }
 }
 
 /// Choice options from `(id, label)` pairs whose labels are `tl!` literals at the call site.
@@ -259,12 +273,15 @@ pub(super) fn params_for(app: &mut PhotocraftApp, id: &str) -> Option<(Vec<Param
         }
         "file.export.artboardsToFiles" => {
             let (_, _, name) = doc?;
-            plain(vec![
+            let mut rows = vec![
                 folder("dir", tl!("Destination"), dir),
                 Param::new("prefix", tl!("File Name Prefix"), ParamKind::text(stem(&name))),
                 choice("format", tl!("File Type"), export_formats(), "png"),
                 export_quality(),
-            ])
+            ];
+            // Include Artboard Name and its Name Options (#13637).
+            rows.extend(artboard_name_options::rows(&crate::type_tool::families()));
+            plain(rows)
         }
         "file.export.artboardsToPdf" => {
             let (_, _, name) = doc?;

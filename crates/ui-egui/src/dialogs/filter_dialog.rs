@@ -597,6 +597,10 @@ pub(crate) fn command_params(command: &str, fields: &DialogFields) -> Value {
     {
         map.remove("quality");
     }
+    // Artboards to Files sends its Name Options only while Include Artboard Name is ticked (#13637).
+    if command == "file.export.artboardsToFiles" {
+        crate::menus::view_cmds::strip_artboard_name_options(&mut map);
+    }
     // An emptied embedded LUT is no data: a stored empty `data` would be read over the chosen `lut`.
     if command == "image.adjustments.colorLookup" && map.get("data").and_then(Value::as_str).is_some_and(str::is_empty) {
         map.remove("data");
