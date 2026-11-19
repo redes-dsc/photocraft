@@ -656,6 +656,7 @@ pub(crate) fn validate_match_color_destination(app: &PhotocraftApp, command: &st
 pub(crate) fn check(app: &mut PhotocraftApp, result: &ParamResult) -> Result<(), Label> {
     let destination = crate::dialogs::params::captured(app, &result.key);
     let fields = fields_map(&result.fields);
+    crate::dialogs::define_name::check(app, &result.key, &fields)?;
     validate_match_color_destination(app, &result.key, &destination, &fields).map_err(Label::from)?;
     validate_match_color_source_layer(app, &result.key, &fields).map_err(Label::from)
 }
