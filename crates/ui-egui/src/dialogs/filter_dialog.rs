@@ -173,7 +173,6 @@ pub const PREVIEWED: &[&str] = &[
     "image.adjustments.replaceColor",
     MATCH_COLOR,
     "image.adjustments.hdrToning",
-    "image.rotation.arbitrary",
     "image.mode.indexedColor",
     "image.mode.bitmap",
     "image.mode.duotone",
@@ -205,6 +204,8 @@ pub fn has_dialog(command: &str) -> bool {
         || matches!(
             command,
             "image.trim"
+                // Rotate Canvas has no preview, as in the reference application (#14462).
+                | "image.rotation.arbitrary"
                 | "view.proofSetup"
                 | "layer.layerStyle.globalLight"
                 | "image.mode.colorTable"
@@ -351,6 +352,10 @@ pub(crate) fn params(app: &mut PhotocraftApp, command: &str, spec: &str) -> Vec<
     if command == "image.mode.colorTable" {
         list.extend(crate::color_table_ui::rows(app));
     }
+    // Rotate Canvas: one row of its own, without the Interpolation row (#14462).
+    if command == super::rotate_canvas_ui::COMMAND {
+        list = super::rotate_canvas_ui::params();
+    }
     rows::custom_rows(app, command, &mut list);
     if command == "edit.colorSettings" {
         // The monitor line under the rows: the cell holds the text each frame refreshes, which the build closure cannot read from the app.
@@ -382,6 +387,9 @@ pub(crate) fn fields(app: &PhotocraftApp, command: &str, params: &[Param]) -> Di
     }
     if command == crate::bitmap_dialog::COMMAND {
         crate::bitmap_dialog::defaults(app, &mut fields);
+    }
+    if command == super::rotate_canvas_ui::COMMAND {
+        super::rotate_canvas_ui::open_values(&mut fields);
     }
     fields
 }
@@ -494,6 +502,12 @@ pub(crate) fn title_of(label: &str) -> Label {
     Label::from(crate::i18n::t(label).trim_end_matches('…').to_string())
 }
 
+/// The title of `command`'s dialog: [`title_of`] its label, or the dialog's own name where the reference application
+/// gives it one (Arbitrary opens "Rotate Canvas", #14462).
+fn dialog_title(command: &str, label: &str) -> Label {
+    if command == super::rotate_canvas_ui::COMMAND { super::rotate_canvas_ui::title() } else { title_of(label) }
+}
+
 /// The build closure of a command dialog over its values, over the active document's canvas: its droppers, the Blur
 /// Gallery's pins and the preview pane's locator take presses there.
 fn builder(
@@ -502,6 +516,7 @@ fn builder(
     title: Label,
     params: Vec<Param>,
     reset: DialogFields,
+    preview: bool,
 ) -> impl for<'b> Fn(&'b mut DialogFields) -> ParamDialog<'b> + Send + 'static {
     let key = command.to_owned();
     let canvas = app.session.active_index().map(|idx| crate::canvas::document_display::CanvasHost::primary(app, idx).canvas_id());
@@ -510,7 +525,9 @@ fn builder(
             .values(Bind::bound(fields))
             .reset_to(reset.clone())
             .layout(ParamLayout::Stacked)
-            .previews(previews(&key))
+            .previews(preview)
+            // Alt keeps Rotate Canvas's Cancel a Cancel, as in the reference application (#14462).
+            .alt_resets(key != super::rotate_canvas_ui::COMMAND)
             .alert_title(tl!("PhotoCraft"));
         if let Some(canvas) = canvas {
             dialog = dialog.canvas(canvas);
@@ -526,12 +543,23 @@ fn builder(
 /// Opens `command`'s schema dialog using the current settings and editing target. The dialog's key
 /// is the command; Match Color captures its destination document and layer.
 pub fn open(app: &mut PhotocraftApp, command: &str) -> Result<DialogId, String> {
+    open_as(app, command, previews(command))
+}
+
+/// [`open`] with the Preview box whether or not `command`'s dialog has one. Rotate Canvas has none (#14462), but the
+/// canvas still places a preview that changes the document's size (#1436); its tests reach that path through here.
+#[doc(hidden)]
+pub fn open_previewing(app: &mut PhotocraftApp, command: &str) -> Result<DialogId, String> {
+    open_as(app, command, true)
+}
+
+fn open_as(app: &mut PhotocraftApp, command: &str, preview: bool) -> Result<DialogId, String> {
     let spec = photocraft_engine::commands::find(command).ok_or_else(|| format!("{command} has no dialog"))?;
     let params = params(app, command, spec.params);
     let fields = fields(app, command, &params);
     let captured = if command == MATCH_COLOR { json!(app.session.active().map(|st| (st.doc.id, st.active_layer))) } else { Value::Null };
     let reset = reset_values(&params, &fields);
-    let build = builder(app, command, title_of(spec.label), params, reset);
+    let build = builder(app, command, dialog_title(command, spec.label), params, reset, preview);
     let id = crate::dialogs::params::open_param(app, command, fields, captured, build);
     if command == MATCH_COLOR {
         reconcile_match_color(app);
@@ -551,7 +579,7 @@ pub fn open_with_spec(app: &mut PhotocraftApp, command: &str, label: &str, spec:
         fields.set("target", FieldValue::Json(target));
     }
     let reset = reset_values(&params, &fields);
-    let build = builder(app, command, title_of(label), params, reset);
+    let build = builder(app, command, title_of(label), params, reset, previews(command));
     // PLAN: assumed `open_param_unsaved(app, key, fields, captured, build) -> DialogId` (dialogs-w19): `open_param` without the remember key.
     crate::dialogs::params::open_param_unsaved(app, command, fields, Value::Null, build)
 }
@@ -566,7 +594,7 @@ pub fn open_smart_edit(app: &mut PhotocraftApp, command: &str, recorded: &Map<St
     let reset = reset_values(&params, &base);
     let mut opening = base;
     overlay(&params, recorded, &mut opening);
-    let build = builder(app, command, title_of(spec.label), params, reset);
+    let build = builder(app, command, dialog_title(command, spec.label), params, reset, previews(command));
     // PLAN: assumed `open_param_unsaved`, as in `open_with_spec`.
     Ok(crate::dialogs::params::open_param_unsaved(app, command, opening, target, build))
 }
@@ -620,6 +648,9 @@ pub(crate) fn command_params(command: &str, fields: &DialogFields) -> Value {
     }
     if command == crate::dialogs::image_processor_ui::COMMAND {
         crate::dialogs::image_processor_ui::nest(&mut map);
+    }
+    if command == super::rotate_canvas_ui::COMMAND {
+        super::rotate_canvas_ui::command_params(&mut map);
     }
     params_of(&map)
 }
