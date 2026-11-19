@@ -1,31 +1,50 @@
 use super::filters::smart;
 use super::source::{
-    SourceImage, cache_get, cache_key, cache_put, convert_svg_source, source_bytes, source_surface_from_buffer, svg_source_image_in, vector_scale,
+    SourceImage, cache_get, cache_put, convert_svg_source, source_bytes, source_cache_key, source_image_classified, source_surface_from_buffer,
+    svg_source_image_in, vector_scale,
 };
 use super::{
     Affine, Arc, BlendMode, Document, EngineError, Homography, JobCtx, Layer, LayerContent, LayerId, PixelFormat, Rect, Result, SmartFilter, SmartObject,
     SmartSource, Stage, StageKey, Surface, Value, affine_homography, other, placement, stack_cache,
 };
+use photocraft_doc::HistoricalXcfSampleOrder;
 use std::collections::VecDeque;
 use std::sync::{Mutex, Weak};
 
 /// Layer › Smart Objects › Stack Mode: the source's layers (or, when it holds a single group, the
 /// group's layers) combined per pixel with `mode`. Cached like [`super::source_image`], keyed by mode.
 pub fn stack_image(file_name: &str, bytes: &[u8], fmt: PixelFormat, mode: photocraft_doc::StackMode) -> Result<SourceImage> {
-    stack_image_classified(file_name, bytes, fmt, mode, None)
+    stack_image_with_order(file_name, bytes, fmt, mode, None)
 }
 
-fn stack_image_classified(file_name: &str, bytes: &[u8], fmt: PixelFormat, mode: photocraft_doc::StackMode, svg: Option<bool>) -> Result<SourceImage> {
+/// Stack source layers with the persisted historical sample interpretation as part of the cache key.
+pub fn stack_image_with_order(
+    file_name: &str,
+    bytes: &[u8],
+    fmt: PixelFormat,
+    mode: photocraft_doc::StackMode,
+    order: Option<HistoricalXcfSampleOrder>,
+) -> Result<SourceImage> {
+    stack_image_classified(file_name, bytes, fmt, mode, None, order)
+}
+
+fn stack_image_classified(
+    file_name: &str,
+    bytes: &[u8],
+    fmt: PixelFormat,
+    mode: photocraft_doc::StackMode,
+    svg: Option<bool>,
+    order: Option<HistoricalXcfSampleOrder>,
+) -> Result<SourceImage> {
     use photocraft_algo::stack::Stat;
-    let mut key = cache_key(bytes, fmt);
-    // Keep the filename in the key because fallback import uses it to choose a format.
+    let mut key = source_cache_key(file_name, bytes, fmt, svg, order);
     // Use a separate domain from entries that predate plain SVG completeness checks.
-    key.0 = *blake3::hash(&[&key.0[..], b"stack-source-v3:", blake3::hash(file_name.as_bytes()).as_bytes(), mode.id().as_bytes()].concat()).as_bytes();
+    key.0 = *blake3::hash(&[&key.0[..], b"stack-source-v3:", mode.id().as_bytes()].concat()).as_bytes();
     if let Some(img) = cache_get(&key) {
         return Ok(img);
     }
     let svg = svg.unwrap_or_else(|| photocraft_io::svg::is_svg(bytes));
-    let doc = super::decode_source_classified(file_name, bytes, svg)?;
+    let doc = super::decode_source_classified(file_name, bytes, svg, order)?;
     let layers: &[Layer] = match doc.layers.as_slice() {
         [only] if only.is_group() => only.children().unwrap_or_default(),
         all => all,
@@ -216,11 +235,12 @@ fn place_with_svg(
             }
         });
     }
+    let order = sm.historical_xcf_sample_order;
     let img = match sm.stack_mode {
-        Some(mode) if is_svg => convert_svg_source(stack_image_classified(name, bytes, PixelFormat::RGBA32F, mode, Some(is_svg))?, doc)?,
+        Some(mode) if is_svg => convert_svg_source(stack_image_classified(name, bytes, PixelFormat::RGBA32F, mode, Some(is_svg), order)?, doc)?,
         None if is_svg => svg(bytes, 1.0)?,
-        Some(mode) => stack_image_classified(name, bytes, fmt, mode, Some(is_svg))?,
-        None => super::source::source_image_classified(name, bytes, fmt, is_svg)?,
+        Some(mode) => stack_image_classified(name, bytes, fmt, mode, Some(is_svg), order)?,
+        None => source_image_classified(name, bytes, fmt, is_svg, order)?,
     };
     // The placed stage is unclipped: a large enough placement (an image scaled to fill a huge
     // frame) would otherwise fill memory before any allocation could fail.
@@ -325,10 +345,12 @@ pub(crate) fn source_box(doc: &Document, sm: &SmartObject) -> Option<[f64; 4]> {
     let (name, bytes) = source_bytes(&doc.metadata, &sm.source)?;
     let bytes = display_source(sm, &bytes);
     let fmt = doc.pixel_format();
+    let is_svg = photocraft_io::svg::is_svg(&bytes);
+    let order = sm.historical_xcf_sample_order;
     let r = match sm.stack_mode {
-        None if photocraft_io::svg::is_svg(&bytes) => photocraft_io::svg::bounded_canvas_bounds(&bytes, 24_000_000).ok()?,
-        Some(mode) => stack_image(&name, &bytes, fmt, mode).ok()?.bounds,
-        None => super::source::source_image(&name, &bytes, fmt).ok()?.bounds,
+        None if is_svg => photocraft_io::svg::bounded_canvas_bounds(&bytes, 24_000_000).ok()?,
+        Some(mode) => stack_image_classified(&name, &bytes, fmt, mode, Some(is_svg), order).ok()?.bounds,
+        None => source_image_classified(&name, &bytes, fmt, is_svg, order).ok()?.bounds,
     };
     Some([f64::from(r.x0), f64::from(r.y0), f64::from(r.x1), f64::from(r.y1)])
 }
@@ -501,8 +523,7 @@ fn render_in_with_source(doc: &Document, sm: &SmartObject, ctx: &JobCtx, snapsho
     let is_svg = photocraft_io::svg::is_svg(&bytes);
     let mut h = blake3::Hasher::new();
     h.update(b"smart-placement-v3:");
-    h.update(&stack_cache::placed_key(&bytes, fmt, sm, canvas));
-    h.update(blake3::hash(name.as_bytes()).as_bytes());
+    h.update(&stack_cache::placed_key(&name, &bytes, fmt, sm, canvas));
     if is_svg {
         h.update(&crate::color_cmds::document_profile(doc).to_bytes());
     }

@@ -260,7 +260,7 @@ pub fn layers_to_smart(doc: &Document, name: &str, layers: Vec<Layer>) -> Result
     let bytes = encode_source(&sub)?;
     // The encoded native document is non-SVG; match the classified render/bounds path.
     cache_put(
-        source_cache_key(&sub.name, &bytes, fmt, Some(false)),
+        source_cache_key(&sub.name, &bytes, fmt, Some(false), None),
         SourceImage { surface: Arc::new(translate_surface(&cache, -b.x0, -b.y0)), bounds: sub.bounds() },
     );
 
