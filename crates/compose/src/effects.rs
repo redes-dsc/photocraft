@@ -247,6 +247,8 @@ impl FxMaps {
 }
 
 #[cfg(test)]
+mod outer_glow_noise_tests;
+#[cfg(test)]
 mod tests;
 
 #[cfg(test)]
